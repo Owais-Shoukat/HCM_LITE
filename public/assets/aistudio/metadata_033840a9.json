@@ -1,0 +1,11 @@
+{
+  "name": "Saylani HCM Lite",
+  "description": "Production-Quality, AI-Powered Human Capital Management System for Admin, HR, and Employees with attendance, leave management, automated payroll, and intelligent assistant.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
