@@ -26,6 +26,13 @@ export interface Employee {
   medicalAllowance?: number;
   grossSalary?: number;
   status: 'active' | 'inactive';
+  deactivationDate?: string;
+  deactivationReason?: string;
+  finalWorkingDate?: string;
+  terminationReason?: string;
+  rehireEligible?: boolean;
+  reactivationDate?: string;
+  reactivationReason?: string;
   faceEnrolled: boolean;
   biometricConsent: boolean;
   biometricConsentDate?: string;

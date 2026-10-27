@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
-import { ShieldCheck, Search, RefreshCw, Lock } from 'lucide-react';
+import { ShieldCheck, Search, RefreshCw, Lock, Terminal } from 'lucide-react';
 import type { AuditLog } from '../types/index.ts';
 
 export function AuditLogScreen() {
@@ -42,78 +42,78 @@ export function AuditLogScreen() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Header Banner */}
+      <div className="glass-panel rounded-3xl p-6 border border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
-            <ShieldCheck className="w-6 h-6 text-emerald-600" />
-            <span>Immutable Security & Audit Trail</span>
+          <h1 className="text-xl font-extrabold text-white flex items-center space-x-2.5">
+            <ShieldCheck className="w-6 h-6 text-[#00f2fe]" />
+            <span>IMMUTABLE SECURITY AUDIT TRAIL</span>
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Strict append-only audit trail tracking authentication, biometric actions, employee registrations, and attendance events.
+          <p className="text-xs text-slate-400 mt-1 font-mono">
+            APPEND-ONLY LOG // CRYPTOGRAPHIC CHAIN INTEGRITY
           </p>
         </div>
 
         <button
           type="button"
           onClick={fetchLogs}
-          className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer self-start sm:self-auto"
+          className="glow-btn-purple p-2.5 rounded-xl transition-all cursor-pointer self-start sm:self-auto flex items-center gap-1.5 text-xs font-bold"
           title="Refresh Logs"
         >
-          <RefreshCw className="w-4 h-4" />
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <span>SYNC AUDIT</span>
         </button>
       </div>
 
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+      {/* Main Table Container */}
+      <div className="glass-panel rounded-3xl p-6 border border-white/10 space-y-4">
         <div className="relative w-full sm:w-80">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search audit actions, emails, details..."
-            className="w-full pl-10 pr-4 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+            placeholder="Filter audit actions, actor emails..."
+            className="w-full pl-10 pr-4 py-2 text-xs cyber-input font-mono"
           />
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-2xl border border-white/10 bg-[#070918]/60">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider border-b border-slate-200">
+            <thead className="bg-[#0e122b] text-slate-400 font-mono text-[10px] uppercase tracking-wider border-b border-white/10">
               <tr>
-                <th className="py-3 px-4">Timestamp (UTC / PKT)</th>
-                <th className="py-3 px-4">Actor</th>
-                <th className="py-3 px-4">Action</th>
-                <th className="py-3 px-4">Target Entity</th>
-                <th className="py-3 px-4">Sanitized Audit Details</th>
+                <th className="py-3.5 px-4">Timestamp (PKT)</th>
+                <th className="py-3.5 px-4">Actor</th>
+                <th className="py-3.5 px-4">Action</th>
+                <th className="py-3.5 px-4">Entity</th>
+                <th className="py-3.5 px-4">Audit Details</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
+            <tbody className="divide-y divide-white/5 font-mono text-[11px]">
               {filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-slate-400 font-sans">
-                    No audit records found.
+                  <td colSpan={5} className="py-10 text-center text-slate-400 font-sans">
+                    {loading ? 'Decrypting audit log entries...' : 'No audit records match the query.'}
                   </td>
                 </tr>
               ) : (
                 filteredLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="py-3 px-4 text-slate-500 whitespace-nowrap">
+                  <tr key={log.id} className="hover:bg-white/5 transition-colors">
+                    <td className="py-3 px-4 text-slate-400 whitespace-nowrap">
                       {new Date(log.timestamp).toLocaleString('en-PK', { timeZone: 'Asia/Karachi' })}
                     </td>
-                    <td className="py-3 px-4 font-sans font-medium text-slate-800 whitespace-nowrap">
-                      {log.userEmail || 'System'}
-                      {log.userRole && (
-                        <span className="ml-1.5 text-[9px] uppercase font-bold text-slate-400 bg-slate-100 px-1 py-0.2 rounded">
-                          {log.userRole}
-                        </span>
-                      )}
+                    <td className="py-3 px-4 text-white font-medium">
+                      {log.userEmail || <span className="text-slate-500">System</span>}
                     </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-sans text-[10px]">
+                    <td className="py-3 px-4">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] uppercase font-bold tracking-wider bg-purple-500/10 text-purple-300 border border-purple-500/30">
                         {log.action}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-slate-600 font-sans">{log.entityType}</td>
-                    <td className="py-3 px-4 font-sans text-slate-700 max-w-md">{log.details}</td>
+                    <td className="py-3 px-4 text-cyan-300">{log.entityType}</td>
+                    <td className="py-3 px-4 text-slate-300 font-sans max-w-md truncate" title={log.details}>
+                      {log.details}
+                    </td>
                   </tr>
                 ))
               )}

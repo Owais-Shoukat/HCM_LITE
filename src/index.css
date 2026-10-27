@@ -1,153 +1,199 @@
 @import "tailwindcss";
 
 /*
- * Saylani HCM Lite - Corporate theme
- * Every screen already uses Tailwind's emerald / teal / slate colors and
- * rounded-2xl / rounded-3xl corners. Redefining those values here restyles
- * the whole app at once without touching any component logic.
+ * Saylani HCM Lite — Futuristic Cyber-Glass Enterprise Theme
+ * Visual aesthetic aligned with the reference curved HUD interface:
+ * Deep space navy/near-black canvases, ambient cyan/violet/magenta aurora gradients,
+ * glassmorphic translucent panels with fine borders, restrained neon glows, and rounded cards.
  */
 
 @theme {
-  /* Typeface: Inter first, clean system fonts as fallback */
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-    Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
 
-  /* Primary: deep forest green (replaces bright emerald) */
-  --color-emerald-50: #f1f7f4;
-  --color-emerald-100: #dcece4;
-  --color-emerald-200: #bbd9c9;
-  --color-emerald-300: #8fbfa5;
-  --color-emerald-400: #5a9f7f;
-  --color-emerald-500: #35845f;
-  --color-emerald-600: #236b4b;
-  --color-emerald-700: #1c563c;
-  --color-emerald-800: #174630;
-  --color-emerald-900: #123826;
-  --color-emerald-950: #0a2217;
+  /* Deep Space Dark Palette */
+  --color-slate-950: #05060d;
+  --color-slate-900: #090b18;
+  --color-slate-850: #0d1024;
+  --color-slate-800: #121630;
+  --color-slate-750: #171d3d;
+  --color-slate-700: #1f274f;
+  --color-slate-600: #334075;
+  --color-slate-500: #56649c;
+  --color-slate-400: #8896c7;
+  --color-slate-300: #b5c0e4;
+  --color-slate-200: #dce3f8;
+  --color-slate-100: #f1f4fd;
+  --color-slate-50: #f8faff;
 
-  /* Secondary: muted slate-teal (used in button gradients) */
-  --color-teal-50: #f0f6f7;
-  --color-teal-100: #d9e8ea;
-  --color-teal-200: #b4d1d5;
-  --color-teal-300: #85b2b9;
-  --color-teal-400: #55909a;
-  --color-teal-500: #3a747f;
-  --color-teal-600: #2d5f6a;
-  --color-teal-700: #264e58;
-  --color-teal-800: #213f47;
-  --color-teal-900: #1b343b;
-  --color-teal-950: #0e2025;
+  /* Futuristic Cyber Accents */
+  --color-cyber-purple: #7928ca;
+  --color-cyber-magenta: #ff0080;
+  --color-cyber-cyan: #00f2fe;
+  --color-cyber-blue: #4facfe;
+  --color-cyber-violet: #8a2be2;
+  --color-cyber-amber: #f59e0b;
+  --color-cyber-emerald: #10b981;
 
-  /* Neutral: cool navy-leaning slate */
-  --color-slate-50: #f6f8fb;
-  --color-slate-100: #edf1f6;
-  --color-slate-200: #dde4ed;
-  --color-slate-300: #c3cdda;
-  --color-slate-400: #8d9bb0;
-  --color-slate-500: #637088;
-  --color-slate-600: #4a566b;
-  --color-slate-700: #364154;
-  --color-slate-800: #1f2937;
-  --color-slate-900: #121a2b;
-  --color-slate-950: #0a1020;
+  /* Corner Radii */
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.5rem;
 
-  /* Corners: tighter and more business-like */
-  --radius-lg: 0.375rem;
-  --radius-xl: 0.5rem;
-  --radius-2xl: 0.625rem;
-  --radius-3xl: 0.75rem;
+  /* Ambient Glow Animations */
+  --animate-aurora: aurora 20s ease-in-out infinite alternate;
+  --animate-pulse-glow: pulse-glow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
 
-  /* Shadows: quieter */
-  --shadow-sm: 0 1px 2px 0 rgb(18 26 43 / 0.06);
-  --shadow-md: 0 2px 8px -2px rgb(18 26 43 / 0.10);
-  --shadow-lg: 0 6px 16px -6px rgb(18 26 43 / 0.14);
-  --shadow-xl: 0 10px 28px -10px rgb(18 26 43 / 0.18);
-  --shadow-2xl: 0 18px 44px -14px rgb(18 26 43 / 0.28);
+@keyframes aurora {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
 
-  /* One short fade when switching screens */
-  --animate-screen-in: screen-in 0.18s ease-out;
-  @keyframes screen-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.03);
   }
 }
 
 @layer base {
   html {
+    color-scheme: dark;
     -webkit-text-size-adjust: 100%;
+    background-color: #060712;
   }
 
   body {
-    background-color: var(--color-slate-50);
-    color: var(--color-slate-900);
+    background-color: #060712;
+    color: #f1f5f9;
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
   }
 
   ::selection {
-    background-color: var(--color-emerald-200);
-    color: var(--color-emerald-950);
+    background-color: rgba(121, 40, 202, 0.4);
+    color: #ffffff;
   }
 
-  /* Visible keyboard focus everywhere */
-  :focus-visible {
-    outline: 2px solid var(--color-emerald-600);
-    outline-offset: 2px;
+  /* Custom Futuristic Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
   }
-
-  button:not(:disabled),
-  [role="button"],
-  select {
-    cursor: pointer;
+  ::-webkit-scrollbar-track {
+    background: #090b18;
   }
-
-  /* Tables read better with tabular numbers */
-  table {
-    font-variant-numeric: tabular-nums;
+  ::-webkit-scrollbar-thumb {
+    background: #1f274f;
+    border-radius: 9999px;
   }
-
-  /* Slim, quiet scrollbars */
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: var(--color-slate-300) transparent;
+  ::-webkit-scrollbar-thumb:hover {
+    background: #334075;
   }
 }
 
-/* Phones: 16px inputs stop iOS from zooming in when a field is tapped */
-@media (max-width: 640px) {
-  input,
-  select,
-  textarea {
-    font-size: 16px !important;
-  }
+/* Glassmorphism & Cyber Utility Classes */
+.cyber-bg {
+  background-color: #060712;
+  background-image: 
+    radial-gradient(circle at 15% 15%, rgba(121, 40, 202, 0.15) 0%, transparent 40%),
+    radial-gradient(circle at 85% 20%, rgba(0, 242, 254, 0.12) 0%, transparent 45%),
+    radial-gradient(circle at 50% 85%, rgba(255, 0, 128, 0.10) 0%, transparent 50%);
+  background-attachment: fixed;
 }
 
-/* Respect people who turn animations off */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+.glass-panel {
+  background: rgba(14, 18, 40, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
 }
 
-/* Printing (payroll, attendance reports): hide chrome, drop shadows */
-@media print {
-  header,
-  footer,
-  nav {
-    display: none !important;
-  }
-  * {
-    box-shadow: none !important;
-  }
+.glass-card {
+  background: rgba(19, 24, 54, 0.60);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: all 0.2s ease-in-out;
+}
+
+.glass-card:hover {
+  border-color: rgba(138, 43, 226, 0.35);
+  box-shadow: 0 4px 24px -2px rgba(121, 40, 202, 0.25);
+  transform: translateY(-1px);
+}
+
+.glow-btn-cyan {
+  background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+  color: #060712;
+  font-weight: 600;
+  box-shadow: 0 0 16px -2px rgba(0, 242, 254, 0.5);
+  transition: all 0.2s ease;
+}
+
+.glow-btn-cyan:hover {
+  box-shadow: 0 0 24px 0 rgba(0, 242, 254, 0.7);
+  transform: translateY(-1px);
+}
+
+.glow-btn-magenta {
+  background: linear-gradient(135deg, #ff0080 0%, #7928ca 100%);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 0 16px -2px rgba(255, 0, 128, 0.45);
+  transition: all 0.2s ease;
+}
+
+.glow-btn-magenta:hover {
+  box-shadow: 0 0 24px 0 rgba(255, 0, 128, 0.65);
+  transform: translateY(-1px);
+}
+
+.glow-btn-purple {
+  background: linear-gradient(135deg, #7928ca 0%, #4facfe 100%);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 0 16px -2px rgba(121, 40, 202, 0.45);
+  transition: all 0.2s ease;
+}
+
+.glow-btn-purple:hover {
+  box-shadow: 0 0 24px 0 rgba(121, 40, 202, 0.65);
+  transform: translateY(-1px);
+}
+
+/* Cyber Form Inputs */
+.cyber-input {
+  background: rgba(10, 13, 29, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f1f5f9;
+  border-radius: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.cyber-input:focus {
+  outline: none;
+  border-color: #00f2fe;
+  box-shadow: 0 0 14px -2px rgba(0, 242, 254, 0.4);
+}
+
+.cyber-badge {
+  background: rgba(121, 40, 202, 0.18);
+  border: 1px solid rgba(121, 40, 202, 0.35);
+  color: #d8b4fe;
 }

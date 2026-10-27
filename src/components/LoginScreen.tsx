@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
-import { Mail, Lock, KeyRound, Building2, ScanFace, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Mail, Lock, KeyRound, Building2, ScanFace, CheckCircle2, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
 
 export function LoginScreen() {
   const { login, activateAccount } = useAuth();
   const [activeTab, setActiveTab] = useState<'login' | 'activate'>('login');
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
@@ -14,6 +15,7 @@ export function LoginScreen() {
       setActiveTab('activate');
     }
   }, []);
+
   // Login form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -64,63 +66,74 @@ export function LoginScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Background visual accents */}
-      <div className="absolute top-0 -left-40 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
-      <div className="absolute bottom-0 -right-40 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div className="min-h-screen cyber-bg flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden select-none">
+      {/* Background Ambient Aura Glows */}
+      <div className="absolute top-1/4 -left-32 w-96 h-96 bg-[#7928ca]/25 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute top-1/3 -right-32 w-96 h-96 bg-[#00f2fe]/20 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute -bottom-20 left-1/3 w-96 h-96 bg-[#ff0080]/15 rounded-full blur-[130px] pointer-events-none"></div>
 
-      <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 px-4 sm:px-0">
         <div className="flex justify-center">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-2xl shadow-emerald-500/30">
-            <Building2 className="w-9 h-9 text-white" />
+          <div className="relative group">
+            <div className="absolute -inset-1.5 bg-gradient-to-r from-[#7928ca] via-[#ff0080] to-[#00f2fe] rounded-2xl blur-md opacity-80 group-hover:opacity-100 transition duration-300"></div>
+            <div className="relative w-16 h-16 rounded-2xl bg-[#0a0d24] border border-white/20 flex items-center justify-center shadow-2xl">
+              <Building2 className="w-8 h-8 text-[#00f2fe]" />
+            </div>
           </div>
         </div>
-        <h2 className="mt-4 text-center text-3xl font-extrabold tracking-tight text-white">
-          Saylani HCM Lite
+
+        <h2 className="mt-5 text-center text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+          SAYLANI <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00f2fe] via-[#7928ca] to-[#ff0080]">HCM LITE</span>
         </h2>
-        <p className="mt-1 text-center text-sm text-slate-400">
-          Biometric Attendance & Human Capital Management
+        <p className="mt-1.5 text-center text-xs font-mono tracking-wider text-slate-400 uppercase">
+          WORKSPACE ACCESS // QUANTUM PORTAL
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10 px-4 sm:px-0">
-        <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
-          {/* Tabs */}
-          <div className="flex border-b border-slate-200 bg-slate-50">
+        <div className="glass-panel rounded-3xl overflow-hidden border border-white/10">
+          {/* Futuristic Tabs */}
+          <div className="flex border-b border-white/10 bg-[#090c22]/60 backdrop-blur-md">
             <button
               onClick={() => setActiveTab('login')}
-              className={`flex-1 py-3.5 text-center text-sm font-semibold transition-colors cursor-pointer border-b-2 ${
+              className={`flex-1 py-3.5 text-center text-xs font-bold uppercase tracking-wider transition-all cursor-pointer relative ${
                 activeTab === 'login'
-                  ? 'border-emerald-600 text-emerald-800 bg-white'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
+                  ? 'text-white'
+                  : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Employee / HR Login
+              Sign In
+              {activeTab === 'login' && (
+                <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-gradient-to-r from-[#00f2fe] via-[#7928ca] to-[#ff0080] shadow-[0_0_8px_#00f2fe]"></span>
+              )}
             </button>
             <button
               onClick={() => setActiveTab('activate')}
-              className={`flex-1 py-3.5 text-center text-sm font-semibold transition-colors cursor-pointer border-b-2 ${
+              className={`flex-1 py-3.5 text-center text-xs font-bold uppercase tracking-wider transition-all cursor-pointer relative ${
                 activeTab === 'activate'
-                  ? 'border-emerald-600 text-emerald-800 bg-white'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
+                  ? 'text-white'
+                  : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Activate Account
+              Activate Profile
+              {activeTab === 'activate' && (
+                <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-gradient-to-r from-[#00f2fe] via-[#7928ca] to-[#ff0080] shadow-[0_0_8px_#ff0080]"></span>
+              )}
             </button>
           </div>
 
-          <div className="p-8">
+          <div className="p-6 sm:p-8">
             {activeTab === 'login' ? (
               <form onSubmit={handleLogin} className="space-y-4">
                 {loginError && (
-                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-semibold">
+                  <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs font-semibold">
                     {loginError}
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Work Email
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-300 mb-1.5">
+                    Authorized Work Email
                   </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
@@ -129,16 +142,16 @@ export function LoginScreen() {
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@saylaniwelfare.com"
-                      className="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      placeholder="name@saylaniwelfare.com"
+                      className="w-full pl-10 pr-4 py-2.5 text-sm cyber-input"
                     />
                   </div>
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Password
+                    <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-300">
+                      Security Password
                     </label>
                   </div>
                   <div className="relative">
@@ -149,7 +162,7 @@ export function LoginScreen() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••••••"
-                      className="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      className="w-full pl-10 pr-4 py-2.5 text-sm cyber-input"
                     />
                   </div>
                 </div>
@@ -158,41 +171,41 @@ export function LoginScreen() {
                   <button
                     type="submit"
                     disabled={loginLoading}
-                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-xl shadow-lg shadow-emerald-600/30 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-2"
+                    className="w-full py-3 glow-btn-cyan rounded-xl text-xs uppercase tracking-wider font-bold transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-2"
                   >
-                    <span>{loginLoading ? 'Authenticating...' : 'Sign In to Workspace'}</span>
+                    <span>{loginLoading ? 'AUTHENTICATING...' : 'ENTER SAYLANI WORKSPACE'}</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
 
                 <div className="pt-2 text-center">
-                  <p className="text-xs text-slate-500">
-                    Received an invitation token from HR?{' '}
+                  <p className="text-xs text-slate-400">
+                    Received an invitation token?{' '}
                     <button
                       type="button"
                       onClick={() => setActiveTab('activate')}
-                      className="text-emerald-700 font-bold hover:underline cursor-pointer"
+                      className="text-[#00f2fe] font-bold hover:underline cursor-pointer ml-1"
                     >
-                      Activate account here
+                      Activate account
                     </button>
                   </p>
                 </div>
               </form>
             ) : (
               <form onSubmit={handleActivate} className="space-y-4">
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900 leading-relaxed">
-                  Enter your one-time activation token provided by HR/Admin to activate your employee profile and choose your permanent password.
+                <div className="bg-[#121636]/60 border border-white/10 rounded-xl p-3 text-xs text-slate-300 leading-relaxed">
+                  Enter your 64-character one-time activation token provided by Admin/HR to set your permanent credentials.
                 </div>
 
                 {activateError && (
-                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-semibold">
+                  <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs font-semibold">
                     {activateError}
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                    One-Time Activation Token
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-300 mb-1.5">
+                    One-Time Token
                   </label>
                   <div className="relative">
                     <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
@@ -201,15 +214,15 @@ export function LoginScreen() {
                       required
                       value={tokenInput}
                       onChange={(e) => setTokenInput(e.target.value)}
-                      placeholder="Paste 64-character token"
-                      className="w-full pl-10 pr-4 py-2.5 text-sm font-mono border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      placeholder="Paste activation token"
+                      className="w-full pl-10 pr-4 py-2.5 text-sm font-mono cyber-input"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Create Permanent Password (min 8 chars)
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-300 mb-1.5">
+                    Permanent Password (min 8 chars)
                   </label>
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
@@ -220,13 +233,13 @@ export function LoginScreen() {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="••••••••••••"
-                      className="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      className="w-full pl-10 pr-4 py-2.5 text-sm cyber-input"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-300 mb-1.5">
                     Confirm Password
                   </label>
                   <div className="relative">
@@ -237,7 +250,7 @@ export function LoginScreen() {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="••••••••••••"
-                      className="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      className="w-full pl-10 pr-4 py-2.5 text-sm cyber-input"
                     />
                   </div>
                 </div>
@@ -246,9 +259,9 @@ export function LoginScreen() {
                   <button
                     type="submit"
                     disabled={activateLoading}
-                    className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-semibold text-sm rounded-xl shadow-lg shadow-emerald-600/30 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-2"
+                    className="w-full py-3 glow-btn-magenta rounded-xl text-xs uppercase tracking-wider font-bold transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-2"
                   >
-                    <span>{activateLoading ? 'Activating...' : 'Activate & Enter HCM'}</span>
+                    <span>{activateLoading ? 'PROVISIONING...' : 'ACTIVATE & ENTER HCM'}</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -257,9 +270,9 @@ export function LoginScreen() {
           </div>
         </div>
 
-        {/* Biometric Notice Footer */}
+        {/* Security Badge Footer */}
         <div className="mt-6 flex items-center justify-center space-x-2 text-xs text-slate-400">
-          <ScanFace className="w-4 h-4 text-emerald-400" />
+          <ScanFace className="w-4 h-4 text-[#00f2fe]" />
           <span>Protected with AES-256-GCM Biometric Vault & Server-Authoritative Verification</span>
         </div>
       </div>

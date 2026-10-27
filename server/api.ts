@@ -31,6 +31,7 @@ import {
   requireSelfOrAdminOrHr,
   createRateLimiter
 } from './auth.ts';
+import { processAIChat } from './ai.ts';
 import type { AttendanceRecord, FallbackAttendanceRequest } from './types.ts';
 
 export const apiRouter = Router();
@@ -143,6 +144,14 @@ apiRouter.post('/auth/login', loginLimiter, async (req: Request, res: Response) 
   if (!user || !user.isActive) {
     // Avoid leaking whether account exists
     return res.status(401).json({ error: 'Invalid email or password.' });
+  }
+
+  // Block deactivated employees from logging in
+  if (user.employeeId) {
+    const linkedEmp = db.findEmployeeById(user.employeeId);
+    if (!linkedEmp || linkedEmp.status === 'inactive') {
+      return res.status(401).json({ error: 'Employee account has been deactivated. Access denied.' });
+    }
   }
 
   const isPasswordValid = await verifyPassword(password, user.passwordHash);
@@ -311,7 +320,11 @@ apiRouter.get('/auth/me', authenticateToken, (req: Request, res: Response) => {
  * Employees see employee directory without colleague salary structures.
  */
 apiRouter.get('/employees', authenticateToken, (req: Request, res: Response) => {
-  const employees = db.getEmployees();
+  const statusFilter = req.query.status as string | undefined;
+  let employees = db.getEmployees();
+  if (statusFilter && ['active', 'inactive'].includes(statusFilter.toLowerCase())) {
+    employees = employees.filter(e => e.status === statusFilter.toLowerCase());
+  }
   const callerRole = req.user!.role;
   const callerEmpId = req.user!.employeeId;
 
@@ -464,6 +477,10 @@ apiRouter.post('/employees/:id/resend-invite', authenticateToken, requireRole('a
   const employee = db.findEmployeeById(req.params.id);
   if (!employee) return res.status(404).json({ error: 'Employee not found.' });
 
+  if (employee.status !== 'active') {
+    return res.status(400).json({ error: 'Cannot send activation invitation to a deactivated employee.' });
+  }
+
   const user = db.findUserByEmployeeId(employee.id);
   if (!user) return res.status(404).json({ error: 'No linked user account found for this employee.' });
 
@@ -504,6 +521,242 @@ apiRouter.get('/employees/:id', authenticateToken, requireSelfOrAdminOrHr('id'),
   if (!employee) return res.status(404).json({ error: 'Employee not found.' });
 
   res.json(sanitizeEmployee(employee, req.user!.role, req.user!.employeeId));
+});
+
+/**
+ * Pre-check Warnings Before Employee Deactivation (Admin Only)
+ * Identifies pending leaves, unprocessed payroll runs, open attendance sessions, and biometrics.
+ */
+apiRouter.get('/employees/:id/deactivation-precheck', authenticateToken, requireRole('admin'), (req: Request, res: Response) => {
+  const employee = db.findEmployeeById(req.params.id);
+  if (!employee) return res.status(404).json({ error: 'Employee not found.' });
+
+  const summary = db.getEmployeeHistoricalSummary(employee.id);
+  const warnings: string[] = [];
+
+  if (summary.pendingLeavesCount > 0) {
+    warnings.push(`Employee has ${summary.pendingLeavesCount} pending leave request(s) awaiting approval.`);
+  }
+
+  if (summary.draftPayrolls.length > 0) {
+    const draftMonths = summary.draftPayrolls.map(p => p.month).join(', ');
+    warnings.push(`Employee is included in ${summary.draftPayrolls.length} unfinalized draft payroll run(s) (${draftMonths}).`);
+  }
+
+  // Check today's attendance for open/incomplete sessions
+  const settings = db.getSettings();
+  const { dateStr } = getLocalizedDateTime(new Date(), settings.timezone);
+  const todayAtt = db.findAttendanceForEmployeeAndDate(employee.id, dateStr);
+  if (todayAtt && todayAtt.missingCheckOut && !todayAtt.checkOutTime) {
+    warnings.push('Employee is currently checked in today with an open attendance session (missing check-out).');
+  }
+
+  if (summary.hasBiometrics) {
+    warnings.push('Employee has enrolled facial biometrics registered in the secure vault.');
+  }
+
+  res.json({
+    employeeId: employee.id,
+    employeeCode: employee.employeeCode,
+    employeeName: `${employee.firstName} ${employee.lastName}`,
+    status: employee.status,
+    hasWarnings: warnings.length > 0,
+    warnings,
+    pendingLeaves: summary.pendingLeaves,
+    draftPayrolls: summary.draftPayrolls,
+    hasBiometrics: summary.hasBiometrics
+  });
+});
+
+/**
+ * Deactivate Employee Account & Associated User Login (Admin Only)
+ * Enforces:
+ * - Admin-only authorization (HR cannot deactivate).
+ * - Documents effective date, reason, final working date, termination reason, and rehire eligibility.
+ * - Immediately deactivates linked user account (isActive = false).
+ * - Preserves all historical attendance, leave, payroll, and audit records.
+ * - Generates immutable audit trail record.
+ */
+apiRouter.post('/employees/:id/deactivate', authenticateToken, requireRole('admin'), (req: Request, res: Response) => {
+  const employee = db.findEmployeeById(req.params.id);
+  if (!employee) return res.status(404).json({ error: 'Employee not found.' });
+
+  if (employee.status === 'inactive') {
+    return res.status(400).json({ error: 'Employee is already deactivated.' });
+  }
+
+  const {
+    effectiveDate,
+    reason,
+    finalWorkingDate,
+    terminationReason,
+    rehireEligible
+  } = req.body;
+
+  if (!effectiveDate || !reason || !reason.trim()) {
+    return res.status(400).json({ error: 'Effective deactivation date and reason are required.' });
+  }
+
+  const cleanEffectiveDate = effectiveDate.trim();
+  const cleanReason = reason.trim();
+  const cleanFinalWorkingDate = finalWorkingDate ? finalWorkingDate.trim() : cleanEffectiveDate;
+  const cleanTerminationReason = terminationReason ? terminationReason.trim() : undefined;
+  const isRehireEligible = rehireEligible !== undefined ? Boolean(rehireEligible) : true;
+
+  // 1. Update Employee record
+  const updatedEmp = db.updateEmployee(employee.id, {
+    status: 'inactive',
+    deactivationDate: cleanEffectiveDate,
+    deactivationReason: cleanReason,
+    finalWorkingDate: cleanFinalWorkingDate,
+    terminationReason: cleanTerminationReason,
+    rehireEligible: isRehireEligible
+  });
+
+  // 2. Consistently deactivate linked User account (Requirement 17)
+  const linkedUser = db.findUserByEmployeeId(employee.id);
+  if (linkedUser) {
+    db.updateUser(linkedUser.id, {
+      isActive: false
+    });
+  }
+
+  // 3. Log audit event (Requirement 9)
+  db.logAudit({
+    userId: req.user!.id,
+    userEmail: req.user!.email,
+    userRole: req.user!.role,
+    action: 'EMPLOYEE_DEACTIVATED',
+    entityType: 'Employee',
+    entityId: employee.id,
+    details: `Admin deactivated employee ${employee.employeeCode} (${employee.email}). Effective: ${cleanEffectiveDate}. Reason: ${cleanReason}. Final working date: ${cleanFinalWorkingDate}. Category: ${cleanTerminationReason || 'Standard'}. Rehire eligible: ${isRehireEligible ? 'Yes' : 'No'}. Linked user account deactivated.`
+  });
+
+  res.json({
+    message: `Employee ${employee.employeeCode} has been deactivated successfully.`,
+    employee: sanitizeEmployee(updatedEmp!, req.user!.role, req.user!.employeeId)
+  });
+});
+
+/**
+ * Reactivate Deactivated Employee (Admin Only)
+ * Enforces:
+ * - Admin-only authorization.
+ * - Documents reactivation date and reason.
+ * - Consistently reactivates linked user account (isActive = true).
+ * - Preserves existing employee IDs and record associations.
+ * - Generates immutable audit trail record.
+ */
+apiRouter.post('/employees/:id/reactivate', authenticateToken, requireRole('admin'), (req: Request, res: Response) => {
+  const employee = db.findEmployeeById(req.params.id);
+  if (!employee) return res.status(404).json({ error: 'Employee not found.' });
+
+  if (employee.status === 'active') {
+    return res.status(400).json({ error: 'Employee is already active.' });
+  }
+
+  const { effectiveDate, reason } = req.body;
+  if (!reason || !reason.trim()) {
+    return res.status(400).json({ error: 'Reactivation reason is required.' });
+  }
+
+  const cleanEffectiveDate = effectiveDate ? effectiveDate.trim() : new Date().toISOString().slice(0, 10);
+  const cleanReason = reason.trim();
+
+  // 1. Update Employee record
+  const updatedEmp = db.updateEmployee(employee.id, {
+    status: 'active',
+    reactivationDate: cleanEffectiveDate,
+    reactivationReason: cleanReason
+  });
+
+  // 2. Consistently reactivate linked User account (Requirement 17)
+  const linkedUser = db.findUserByEmployeeId(employee.id);
+  if (linkedUser) {
+    db.updateUser(linkedUser.id, {
+      isActive: true
+    });
+  }
+
+  // 3. Log audit event (Requirement 9)
+  db.logAudit({
+    userId: req.user!.id,
+    userEmail: req.user!.email,
+    userRole: req.user!.role,
+    action: 'EMPLOYEE_REACTIVATED',
+    entityType: 'Employee',
+    entityId: employee.id,
+    details: `Admin reactivated employee ${employee.employeeCode} (${employee.email}). Effective: ${cleanEffectiveDate}. Reason: ${cleanReason}. Linked user account reactivated.`
+  });
+
+  res.json({
+    message: `Employee ${employee.employeeCode} has been reactivated successfully.`,
+    employee: sanitizeEmployee(updatedEmp!, req.user!.role, req.user!.employeeId)
+  });
+});
+
+/**
+ * Delete Employee Record (Admin Only)
+ * Strictly Enforces Referential Integrity & Financial History Protection:
+ * - Deletion is BLOCKED if employee has attendance, leaves, payroll/payslip, or fallback records.
+ * - Requires explicit confirmation in request body.
+ * - Never deletes records silently (audits action).
+ */
+apiRouter.delete('/employees/:id', authenticateToken, requireRole('admin'), (req: Request, res: Response) => {
+  const employee = db.findEmployeeById(req.params.id);
+  if (!employee) return res.status(404).json({ error: 'Employee not found.' });
+
+  // 1. Check referential integrity & historical business records (Requirements 12 & 14)
+  const summary = db.getEmployeeHistoricalSummary(employee.id);
+  if (summary.hasHistoricalRecords) {
+    const blockers: string[] = [];
+    if (summary.attendanceCount > 0) blockers.push(`${summary.attendanceCount} attendance record(s)`);
+    if (summary.leavesCount > 0) blockers.push(`${summary.leavesCount} leave record(s)`);
+    if (summary.payrollCount > 0) blockers.push(`${summary.payrollCount} payroll/payslip record(s)`);
+    if (summary.fallbackCount > 0) blockers.push(`${summary.fallbackCount} fallback attendance request(s)`);
+
+    return res.status(409).json({
+      error: `Cannot delete employee ${employee.employeeCode}: Employee has historical business records (${blockers.join(', ')}). Referential integrity, financial audit trails, and labor compliance require deactivation instead of permanent deletion.`,
+      blockers,
+      summary
+    });
+  }
+
+  // 2. Explicit confirmation required (Requirement 13)
+  const confirmation = req.body?.confirmation ?? req.query?.confirmation;
+  if (confirmation !== true && confirmation !== 'true') {
+    return res.status(400).json({
+      error: 'Explicit confirmation is required to delete an employee record. Send confirmation: true in the request body.'
+    });
+  }
+
+  // 3. Clean deletion of unreferenced employee
+  db.deleteBiometricTemplate(employee.id);
+
+  const linkedUser = db.findUserByEmployeeId(employee.id);
+  if (linkedUser) {
+    db.deleteUser(linkedUser.id);
+  }
+
+  const deleted = db.deleteEmployee(employee.id);
+  if (!deleted) {
+    return res.status(500).json({ error: 'Failed to delete employee record.' });
+  }
+
+  // 4. Audit trail (never silent - Requirement 14)
+  db.logAudit({
+    userId: req.user!.id,
+    userEmail: req.user!.email,
+    userRole: req.user!.role,
+    action: 'EMPLOYEE_DELETED',
+    entityType: 'Employee',
+    entityId: employee.id,
+    details: `Admin permanently deleted employee ${employee.employeeCode} (${employee.email}) after verifying zero historical records existed.`
+  });
+
+  res.json({
+    message: `Employee ${employee.employeeCode} and linked user account permanently deleted.`
+  });
 });
 
 // ==========================================
@@ -553,6 +806,9 @@ apiRouter.post('/biometrics/enroll', authenticateToken, biometricLimiter, async 
 
   const employee = db.findEmployeeById(employeeId);
   if (!employee) return res.status(404).json({ error: 'Employee not found.' });
+  if (employee.status !== 'active') {
+    return res.status(403).json({ error: 'Deactivated employees cannot enroll biometric data.' });
+  }
 
   const { descriptor, consentGiven, qualityScore, samplesCount } = req.body;
 
@@ -618,6 +874,11 @@ apiRouter.post('/biometrics/verify', authenticateToken, biometricLimiter, (req: 
   const employeeId = req.user!.employeeId;
   if (!employeeId) {
     return res.status(400).json({ error: 'User is not linked to an employee record.' });
+  }
+
+  const employee = db.findEmployeeById(employeeId);
+  if (!employee || employee.status !== 'active') {
+    return res.status(403).json({ error: 'Active employee record required for biometric verification.' });
   }
 
   const { descriptor, action } = req.body;
@@ -692,6 +953,11 @@ apiRouter.delete('/biometrics/consent', authenticateToken, (req: Request, res: R
     return res.status(400).json({ error: 'User is not linked to an employee record.' });
   }
 
+  const employee = db.findEmployeeById(employeeId);
+  if (!employee || employee.status !== 'active') {
+    return res.status(403).json({ error: 'Active employee record required for attendance check-out.' });
+  }
+
   const deleted = db.deleteBiometricTemplate(employeeId);
   db.updateEmployee(employeeId, {
     faceEnrolled: false,
@@ -733,7 +999,7 @@ apiRouter.post('/attendance/check-in', authenticateToken, (req: Request, res: Re
 
   const employee = db.findEmployeeById(employeeId);
   if (!employee || employee.status !== 'active') {
-    return res.status(400).json({ error: 'Active employee record required for attendance.' });
+    return res.status(403).json({ error: 'Active employee record required for attendance check-in.' });
   }
 
   const { verificationToken } = req.body;
@@ -811,6 +1077,11 @@ apiRouter.post('/attendance/check-out', authenticateToken, (req: Request, res: R
     return res.status(400).json({ error: 'User is not linked to an employee record.' });
   }
 
+  const employee = db.findEmployeeById(employeeId);
+  if (!employee || employee.status !== 'active') {
+    return res.status(403).json({ error: 'Active employee record required for attendance check-out.' });
+  }
+
   const { verificationToken } = req.body;
   if (!verificationToken) {
     return res.status(422).json({
@@ -885,6 +1156,11 @@ apiRouter.post('/attendance/fallback-request', authenticateToken, (req: Request,
   const employeeId = req.user!.employeeId;
   if (!employeeId) {
     return res.status(400).json({ error: 'User is not linked to an employee record.' });
+  }
+
+  const employee = db.findEmployeeById(employeeId);
+  if (!employee || employee.status !== 'active') {
+    return res.status(403).json({ error: 'Active employee record required to submit fallback attendance.' });
   }
 
   const { actionType, reason, reasonDetails } = req.body;
@@ -1166,6 +1442,11 @@ apiRouter.post('/leaves', authenticateToken, (req: Request, res: Response) => {
   const employeeId = req.user!.employeeId;
   if (!employeeId) return res.status(400).json({ error: 'Employee record required.' });
 
+  const employee = db.findEmployeeById(employeeId);
+  if (!employee || employee.status !== 'active') {
+    return res.status(403).json({ error: 'Deactivated employees cannot submit leave requests.' });
+  }
+
   const { leaveType, startDate, endDate, reason, workingDays } = req.body;
   if (!leaveType || !startDate || !endDate) {
     return res.status(400).json({ error: 'Leave type, start date, and end date are required.' });
@@ -1211,7 +1492,13 @@ apiRouter.post('/payroll/generate', authenticateToken, requireRole('admin', 'hr'
     return res.status(422).json({ error: `Payroll for ${month} is already finalized and locked.` });
   }
 
-  const employees = db.getEmployees().filter(e => e.status === 'active');
+  // Include active employees, as well as employees deactivated during the payroll month for final payments/settlement
+  const employees = db.getEmployees().filter(e => {
+    if (e.status === 'active') return true;
+    if (e.deactivationDate && e.deactivationDate.startsWith(month)) return true;
+    if (e.finalWorkingDate && e.finalWorkingDate.startsWith(month)) return true;
+    return false;
+  });
   const items = employees.map(emp => {
     const monthlyTax = calculateMonthlyTax(emp.grossSalary);
     const netSalary = emp.grossSalary - monthlyTax;
@@ -1273,4 +1560,35 @@ apiRouter.post('/payroll/:id/finalize', authenticateToken, requireRole('admin'),
 
 apiRouter.get('/audit', authenticateToken, requireRole('admin'), (_req: Request, res: Response) => {
   res.json(db.getAuditLogs());
+});
+
+// ==========================================
+// 8. GEMINI AI ASSISTANT ROUTES
+// ==========================================
+
+/**
+ * AI Assistant Chat Endpoint
+ * Role-scoped, grounded with function calling, Roman Urdu supported, rate-limited
+ */
+apiRouter.post('/ai/chat', authenticateToken, async (req: Request, res: Response) => {
+  const { prompt, history } = req.body;
+  if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+    return res.status(400).json({ error: 'A valid text prompt is required.' });
+  }
+
+  try {
+    const chatHistory = Array.isArray(history) ? history : [];
+    const result = await processAIChat(req.user!, prompt.trim(), chatHistory);
+    res.json(result);
+  } catch (err: any) {
+    console.error('[AI Router Error]:', err);
+    res.status(500).json({ error: err.message || 'Failed to process AI query.' });
+  }
+});
+
+/**
+ * AI Assistant Audit Logs (Admin Only)
+ */
+apiRouter.get('/ai/logs', authenticateToken, requireRole('admin'), (_req: Request, res: Response) => {
+  res.json(db.getAILogs());
 });

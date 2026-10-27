@@ -160,3 +160,40 @@ export function calculateMonthlyTax(monthlyGrossSalary: number): number {
   const annualTax = calculateAnnualTax(annualIncome);
   return Math.round(annualTax / 12);
 }
+
+/**
+ * Calculates working days between startDate and endDate (inclusive)
+ * Excludes weekends (default [0, 6]) and holidays.
+ */
+export function calculateWorkingDays(
+  startDateStr: string,
+  endDateStr: string,
+  holidays: string[] = [],
+  weekends: number[] = [0, 6]
+): number {
+  const start = new Date(startDateStr);
+  const end = new Date(endDateStr);
+
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) {
+    return 1;
+  }
+
+  let count = 0;
+  const cur = new Date(start);
+
+  while (cur <= end) {
+    const dayOfWeek = cur.getDay(); // 0 = Sun, 6 = Sat
+    const isoDate = cur.toISOString().split('T')[0];
+
+    const isWeekend = weekends.includes(dayOfWeek);
+    const isHoliday = holidays.includes(isoDate);
+
+    if (!isWeekend && !isHoliday) {
+      count++;
+    }
+
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  return Math.max(1, count);
+}

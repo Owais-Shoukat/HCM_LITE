@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
-import { KeyRound, ShieldAlert, CheckCircle2, Lock } from 'lucide-react';
+import { KeyRound, ShieldAlert, CheckCircle2, Lock, ArrowRight } from 'lucide-react';
 
 export function ForcePasswordChangeModal() {
   const { user, changePassword, logout } = useAuth();
@@ -35,97 +35,98 @@ export function ForcePasswordChangeModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
-        <div className="bg-gradient-to-r from-amber-600 to-amber-700 px-6 py-5 text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#05060e]/85 backdrop-blur-md p-4 select-none">
+      <div className="glass-panel rounded-3xl max-w-md w-full overflow-hidden border border-white/10 shadow-2xl">
+        <div className="bg-gradient-to-r from-[#1f1a42] via-[#151736] to-[#0a0d24] px-6 py-5 text-white border-b border-white/10">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-              <ShieldAlert className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
+              <ShieldAlert className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <h3 className="font-bold text-lg">Initial Password Change Required</h3>
-              <p className="text-xs text-amber-100">Security Requirement for First-Time Login</p>
+              <h3 className="font-extrabold text-base tracking-wide text-white">Password Change Required</h3>
+              <p className="text-[11px] font-mono text-amber-300">SECURITY REQUIREMENT // FIRST LOGIN</p>
             </div>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 leading-relaxed">
-            Welcome, <strong>{user?.fullName}</strong>! You are logging in with a temporary password or one-time invite. To protect your employee account and biometric data, you must choose a new, private password.
+          <div className="bg-[#121634]/60 border border-white/10 rounded-xl p-3 text-xs text-slate-300 leading-relaxed">
+            Welcome, <strong>{user?.fullName}</strong>! You logged in with a temporary password or activation token. To secure your employee records and biometric credentials, please set a new private password.
           </div>
 
           {error && (
-            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-medium">
+            <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs font-semibold">
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+            <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-300 mb-1.5">
               Current / Temporary Password
             </label>
             <div className="relative">
-              <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
               <input
                 type="password"
                 required
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="Enter initial temporary password"
-                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                placeholder="Enter current password"
+                className="w-full pl-10 pr-4 py-2 text-sm cyber-input"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+            <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-300 mb-1.5">
               New Permanent Password (min 8 chars)
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
               <input
                 type="password"
                 required
                 minLength={8}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Create strong permanent password"
-                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                placeholder="Create new password"
+                className="w-full pl-10 pr-4 py-2 text-sm cyber-input"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+            <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-300 mb-1.5">
               Confirm New Password
             </label>
             <div className="relative">
-              <CheckCircle2 className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <CheckCircle2 className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
               <input
                 type="password"
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Re-type new password"
-                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                placeholder="Confirm password"
+                className="w-full pl-10 pr-4 py-2 text-sm cyber-input"
               />
             </div>
           </div>
 
-          <div className="pt-2 flex items-center justify-between">
+          <div className="pt-2 flex items-center justify-between gap-3">
             <button
               type="button"
               onClick={logout}
-              className="text-xs text-slate-500 hover:text-slate-800 underline cursor-pointer"
+              className="py-2.5 px-4 text-xs font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer"
             >
               Cancel & Sign Out
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-xl shadow-md transition-colors cursor-pointer disabled:opacity-50"
+              className="flex-1 py-2.5 glow-btn-cyan rounded-xl text-xs uppercase tracking-wider font-bold transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-2"
             >
-              {loading ? 'Updating Password...' : 'Save & Continue'}
+              <span>{loading ? 'SAVING...' : 'UPDATE PASSWORD'}</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </form>

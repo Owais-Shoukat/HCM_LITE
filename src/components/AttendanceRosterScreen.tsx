@@ -10,7 +10,9 @@ import {
   Search,
   Check,
   X,
-  ScanFace
+  ScanFace,
+  Terminal,
+  ShieldCheck
 } from 'lucide-react';
 import type { FallbackAttendanceRequest } from '../types/index.ts';
 
@@ -95,7 +97,7 @@ export function AttendanceRosterScreen({ initialSubTab = 'roster' }: AttendanceR
   // Metrics
   const totalEmployees = rosterData.length;
   const presentCount = rosterData.filter(
-  (r) => r.attendance?.status === 'present' && !r.attendance?.isLate
+    (r) => r.attendance?.status === 'present' && !r.attendance?.isLate
   ).length;
   const lateCount = rosterData.filter((r) => r.attendance?.isLate).length;
   const halfDayCount = rosterData.filter((r) => r.attendance?.status === 'half_day').length;
@@ -113,24 +115,26 @@ export function AttendanceRosterScreen({ initialSubTab = 'roster' }: AttendanceR
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Top Banner Card */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="glass-panel rounded-3xl p-6 border border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
-            <Clock className="w-6 h-6 text-emerald-600" />
-            <span>Daily Attendance Board & Exceptions Roster</span>
+          <h1 className="text-xl font-extrabold text-white flex items-center space-x-2.5">
+            <Clock className="w-6 h-6 text-[#00f2fe]" />
+            <span>ATTENDANCE ROSTER & EXCEPTIONS BOARD</span>
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Authoritative Server Date: <strong className="text-slate-800 font-mono">{dateStr}</strong> (Asia/Karachi PKT)
+          <p className="text-xs text-slate-400 mt-1 font-mono">
+            AUTHORITATIVE DATE: <strong className="text-cyan-400">{dateStr}</strong> (PKT ASIA/KARACHI)
           </p>
         </div>
 
         {/* Sub-Tabs */}
-        <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 self-start sm:self-auto">
+        <div className="flex bg-[#0b0e24] p-1 rounded-2xl border border-white/10 self-start sm:self-auto">
           <button
             type="button"
             onClick={() => setSubTab('roster')}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-              subTab === 'roster' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+              subTab === 'roster'
+                ? 'bg-gradient-to-r from-[#171c42] to-[#121634] text-white border border-[#7928ca]/50 shadow-md'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
             Daily Roster
@@ -139,12 +143,14 @@ export function AttendanceRosterScreen({ initialSubTab = 'roster' }: AttendanceR
             type="button"
             onClick={() => setSubTab('fallbacks')}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center space-x-1.5 ${
-              subTab === 'fallbacks' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+              subTab === 'fallbacks'
+                ? 'bg-gradient-to-r from-[#171c42] to-[#121634] text-white border border-[#7928ca]/50 shadow-md'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
-            <span>Fallback Requests</span>
+            <span>Fallback Approvals</span>
             {pendingFallbacksCount > 0 && (
-              <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center font-bold">
+              <span className="w-5 h-5 rounded-full bg-[#ff0080] text-white text-[10px] flex items-center justify-center font-bold">
                 {pendingFallbacksCount}
               </span>
             )}
@@ -152,37 +158,37 @@ export function AttendanceRosterScreen({ initialSubTab = 'roster' }: AttendanceR
         </div>
       </div>
 
-      {/* Metric Cards */}
+      {/* Metric Cards (5 Pillars) */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-          <span className="text-[11px] font-semibold text-slate-500 block">On-Time Present</span>
-          <span className="text-xl font-extrabold text-emerald-600">{presentCount}</span>
+        <div className="glass-panel p-4 rounded-2xl border border-white/10">
+          <span className="text-[10px] font-mono uppercase text-slate-400 block">On-Time Present</span>
+          <span className="text-2xl font-extrabold text-emerald-400 font-mono mt-0.5 block">{presentCount}</span>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-          <span className="text-[11px] font-semibold text-slate-500 block">Late Arrivals</span>
-          <span className="text-xl font-extrabold text-amber-600">{lateCount}</span>
+        <div className="glass-panel p-4 rounded-2xl border border-white/10">
+          <span className="text-[10px] font-mono uppercase text-slate-400 block">Late Arrivals</span>
+          <span className="text-2xl font-extrabold text-amber-400 font-mono mt-0.5 block">{lateCount}</span>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-          <span className="text-[11px] font-semibold text-slate-500 block">Half-Days (&lt;5h)</span>
-          <span className="text-xl font-extrabold text-blue-600">{halfDayCount}</span>
+        <div className="glass-panel p-4 rounded-2xl border border-white/10">
+          <span className="text-[10px] font-mono uppercase text-slate-400 block">Half-Days (&lt;5h)</span>
+          <span className="text-2xl font-extrabold text-cyan-400 font-mono mt-0.5 block">{halfDayCount}</span>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-          <span className="text-[11px] font-semibold text-slate-500 block">Missing Check-Out</span>
-          <span className="text-xl font-extrabold text-rose-600">{missingCheckoutCount}</span>
+        <div className="glass-panel p-4 rounded-2xl border border-white/10">
+          <span className="text-[10px] font-mono uppercase text-slate-400 block">Missing Check-Out</span>
+          <span className="text-2xl font-extrabold text-rose-400 font-mono mt-0.5 block">{missingCheckoutCount}</span>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm col-span-2 sm:col-span-1">
-          <span className="text-[11px] font-semibold text-slate-500 block">Pending Fallbacks</span>
-          <span className="text-xl font-extrabold text-purple-600">{pendingFallbacksCount}</span>
+        <div className="glass-panel p-4 rounded-2xl border border-white/10 col-span-2 sm:col-span-1">
+          <span className="text-[10px] font-mono uppercase text-slate-400 block">Pending Fallbacks</span>
+          <span className="text-2xl font-extrabold text-purple-400 font-mono mt-0.5 block">{pendingFallbacksCount}</span>
         </div>
       </div>
 
       {subTab === 'roster' ? (
         /* Daily Roster Table */
-        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+        <div className="glass-panel rounded-3xl p-6 border border-white/10 space-y-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="relative w-full sm:w-80">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
@@ -190,53 +196,54 @@ export function AttendanceRosterScreen({ initialSubTab = 'roster' }: AttendanceR
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by code, name, department..."
-                className="w-full pl-10 pr-4 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                placeholder="Search by code, employee, dept..."
+                className="w-full pl-10 pr-4 py-2 text-xs cyber-input font-mono"
               />
             </div>
 
             <button
               type="button"
               onClick={fetchRoster}
-              className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              className="glow-btn-purple p-2.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold"
               title="Refresh Roster"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <span>SYNC ROSTER</span>
             </button>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto rounded-2xl border border-white/10 bg-[#070918]/60">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider border-b border-slate-200">
+              <thead className="bg-[#0e122b] text-slate-400 font-mono text-[10px] uppercase tracking-wider border-b border-white/10">
                 <tr>
-                  <th className="py-3 px-4">Code</th>
-                  <th className="py-3 px-4">Employee</th>
-                  <th className="py-3 px-4">Department</th>
-                  <th className="py-3 px-4">Check-In</th>
-                  <th className="py-3 px-4">Check-Out</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Method</th>
-                  <th className="py-3 px-4">Exceptions</th>
+                  <th className="py-3.5 px-4">Code</th>
+                  <th className="py-3.5 px-4">Employee</th>
+                  <th className="py-3.5 px-4">Department</th>
+                  <th className="py-3.5 px-4">Check-In</th>
+                  <th className="py-3.5 px-4">Check-Out</th>
+                  <th className="py-3.5 px-4">Status</th>
+                  <th className="py-3.5 px-4">Verification</th>
+                  <th className="py-3.5 px-4">Exceptions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-white/5 font-mono text-[11px]">
                 {filteredRoster.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-slate-400">
-                      No roster records found.
+                    <td colSpan={8} className="py-10 text-center text-slate-400 font-sans">
+                      {loading ? 'Decrypting live attendance roster...' : 'No roster records found.'}
                     </td>
                   </tr>
                 ) : (
                   filteredRoster.map((r) => {
                     const att = r.attendance;
                     return (
-                      <tr key={r.employee.id} className="hover:bg-slate-50/60 transition-colors">
-                        <td className="py-3 px-4 font-mono font-bold text-slate-900">{r.employee.employeeCode}</td>
-                        <td className="py-3 px-4 font-semibold text-slate-800">
+                      <tr key={r.employee.id} className="hover:bg-white/5 transition-colors">
+                        <td className="py-3 px-4 font-bold text-cyan-300">{r.employee.employeeCode}</td>
+                        <td className="py-3 px-4 font-semibold text-white font-sans">
                           {r.employee.firstName} {r.employee.lastName}
                         </td>
-                        <td className="py-3 px-4 text-slate-600">{r.employee.department}</td>
-                        <td className="py-3 px-4 font-mono">
+                        <td className="py-3 px-4 text-slate-400">{r.employee.department}</td>
+                        <td className="py-3 px-4 text-slate-300">
                           {att?.checkInTime
                             ? new Date(att.checkInTime).toLocaleTimeString('en-PK', {
                                 timeZone: 'Asia/Karachi',
@@ -245,7 +252,7 @@ export function AttendanceRosterScreen({ initialSubTab = 'roster' }: AttendanceR
                               })
                             : '—'}
                         </td>
-                        <td className="py-3 px-4 font-mono">
+                        <td className="py-3 px-4 text-slate-300">
                           {att?.checkOutTime
                             ? new Date(att.checkOutTime).toLocaleTimeString('en-PK', {
                                 timeZone: 'Asia/Karachi',
@@ -257,29 +264,29 @@ export function AttendanceRosterScreen({ initialSubTab = 'roster' }: AttendanceR
                         <td className="py-3 px-4">
                           {att ? (
                             <span
-                              className={`font-bold px-2 py-0.5 rounded-full capitalize ${
+                              className={`font-bold px-2 py-0.5 rounded-full capitalize text-[10px] border ${
                                 att.status === 'present'
-                                  ? 'bg-emerald-100 text-emerald-800'
+                                  ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
                                   : att.status === 'late'
-                                  ? 'bg-amber-100 text-amber-800'
+                                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
                                   : att.status === 'half_day'
-                                  ? 'bg-blue-100 text-blue-800'
-                                  : 'bg-slate-100 text-slate-600'
+                                  ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'
+                                  : 'bg-slate-500/10 text-slate-400 border-slate-500/30'
                               }`}
                             >
                               {att.status.replace('_', ' ')}
                             </span>
                           ) : (
-                            <span className="text-slate-400">Not Marked</span>
+                            <span className="text-slate-500 font-sans">Not Marked</span>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-slate-600 capitalize">
+                        <td className="py-3 px-4 capitalize">
                           {att?.checkInMethod ? (
-                            <span className="flex items-center space-x-1">
+                            <span className="flex items-center space-x-1.5 text-cyan-300 text-[10px]">
                               {att.checkInMethod === 'face_verified' ? (
-                                <ScanFace className="w-3.5 h-3.5 text-emerald-600" />
+                                <ScanFace className="w-3.5 h-3.5 text-[#00f2fe]" />
                               ) : (
-                                <HelpCircle className="w-3.5 h-3.5 text-blue-600" />
+                                <HelpCircle className="w-3.5 h-3.5 text-purple-400" />
                               )}
                               <span>{att.checkInMethod.replace('_', ' ')}</span>
                             </span>
@@ -289,14 +296,14 @@ export function AttendanceRosterScreen({ initialSubTab = 'roster' }: AttendanceR
                         </td>
                         <td className="py-3 px-4">
                           {att?.missingCheckOut && (
-                            <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                              <AlertCircle className="w-3 h-3 text-rose-500" />
+                            <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-rose-300 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/30">
+                              <AlertCircle className="w-3 h-3 text-rose-400" />
                               <span>Missing Check-Out</span>
                             </span>
                           )}
                           {att?.isLate && (
-                            <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 ml-1">
-                              <AlertTriangle className="w-3 h-3 text-amber-500" />
+                            <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30 ml-1">
+                              <AlertTriangle className="w-3 h-3 text-amber-400" />
                               <span>Late (+{att.lateMinutes}m)</span>
                             </span>
                           )}
@@ -311,40 +318,38 @@ export function AttendanceRosterScreen({ initialSubTab = 'roster' }: AttendanceR
         </div>
       ) : (
         /* Fallback Requests Tab */
-        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-slate-900 text-base">Authorized Fallback Attendance Review</h3>
-              <p className="text-xs text-slate-500">
-                Audit and approve attendance requests submitted when camera, hardware, or biometric exceptions occur.
-              </p>
-            </div>
+        <div className="glass-panel rounded-3xl p-6 border border-white/10 space-y-4">
+          <div className="border-b border-white/10 pb-3">
+            <h3 className="font-extrabold text-white text-base">AUTHORIZED MANUAL FALLBACK AUDIT</h3>
+            <p className="text-xs text-slate-400 font-mono">
+              SUPERVISOR APPROVAL FOR HARDWARE OR BIOMETRIC CAMERA EXCEPTIONS
+            </p>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider border-b border-slate-200">
+          <div className="overflow-x-auto rounded-2xl border border-white/10 bg-[#070918]/60">
+            <table className="w-full text-left text-xs font-mono">
+              <thead className="bg-[#0e122b] text-slate-400 text-[10px] uppercase tracking-wider border-b border-white/10">
                 <tr>
-                  <th className="py-3 px-4">Date & Time</th>
+                  <th className="py-3 px-4">Timestamp (PKT)</th>
                   <th className="py-3 px-4">Employee</th>
                   <th className="py-3 px-4">Action</th>
                   <th className="py-3 px-4">Reason Category</th>
-                  <th className="py-3 px-4">Employee Notes</th>
+                  <th className="py-3 px-4">Notes</th>
                   <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Review</th>
+                  <th className="py-3 px-4 text-right">Review Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-white/5 text-[11px]">
                 {fallbacks.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-400">
+                    <td colSpan={7} className="py-10 text-center text-slate-400 font-sans">
                       No fallback attendance requests logged.
                     </td>
                   </tr>
                 ) : (
                   fallbacks.map((fb) => (
-                    <tr key={fb.id} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="py-3 px-4 font-mono text-slate-700">
+                    <tr key={fb.id} className="hover:bg-white/5 transition-colors">
+                      <td className="py-3 px-4 text-slate-300">
                         <div>{fb.date}</div>
                         <div className="text-[10px] text-slate-400">
                           {new Date(fb.requestedTimestamp).toLocaleTimeString('en-PK', {
@@ -355,26 +360,26 @@ export function AttendanceRosterScreen({ initialSubTab = 'roster' }: AttendanceR
                         </div>
                       </td>
                       <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-900">{fb.employee?.fullName || fb.employeeId}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">{fb.employee?.employeeCode}</div>
+                        <div className="font-semibold text-white font-sans">{fb.employee?.fullName || fb.employeeId}</div>
+                        <div className="text-[10px] text-cyan-400">{fb.employee?.employeeCode}</div>
                       </td>
-                      <td className="py-3 px-4 capitalize font-semibold text-slate-700">
+                      <td className="py-3 px-4 capitalize font-semibold text-purple-300">
                         {fb.actionType.replace('_', ' ')}
                       </td>
-                      <td className="py-3 px-4 font-medium text-slate-800 capitalize">
+                      <td className="py-3 px-4 capitalize text-slate-300">
                         {fb.reason.replace('_', ' ')}
                       </td>
-                      <td className="py-3 px-4 text-slate-600 text-[11px] max-w-xs truncate" title={fb.reasonDetails}>
+                      <td className="py-3 px-4 text-slate-300 font-sans max-w-xs truncate" title={fb.reasonDetails}>
                         {fb.reasonDetails}
                       </td>
                       <td className="py-3 px-4">
                         <span
-                          className={`font-bold px-2 py-0.5 rounded-full capitalize ${
+                          className={`font-bold px-2 py-0.5 rounded-full capitalize text-[10px] border ${
                             fb.status === 'approved'
-                              ? 'bg-emerald-100 text-emerald-800'
+                              ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
                               : fb.status === 'rejected'
-                              ? 'bg-rose-100 text-rose-800'
-                              : 'bg-amber-100 text-amber-800'
+                              ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                              : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
                           }`}
                         >
                           {fb.status}
@@ -385,12 +390,12 @@ export function AttendanceRosterScreen({ initialSubTab = 'roster' }: AttendanceR
                           <button
                             type="button"
                             onClick={() => setSelectedFallback(fb)}
-                            className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] rounded-lg transition-colors cursor-pointer"
+                            className="glow-btn-cyan px-3 py-1 rounded-lg text-[10px] uppercase font-bold tracking-wider cursor-pointer"
                           >
                             Review
                           </button>
                         ) : (
-                          <span className="text-[10px] text-slate-400">
+                          <span className="text-[10px] text-slate-500">
                             by {fb.reviewedBy || 'HR'}
                           </span>
                         )}
@@ -406,32 +411,32 @@ export function AttendanceRosterScreen({ initialSubTab = 'roster' }: AttendanceR
 
       {/* Review Dialog */}
       {selectedFallback && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
-            <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-5 text-white">
-              <h3 className="font-bold text-base">Review Fallback Attendance</h3>
-              <p className="text-xs text-slate-400">
-                Employee: {selectedFallback.employee?.fullName} ({selectedFallback.employee?.employeeCode})
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#05060e]/85 backdrop-blur-md p-4 select-none">
+          <div className="glass-panel rounded-3xl max-w-md w-full overflow-hidden border border-white/10 shadow-2xl">
+            <div className="bg-gradient-to-r from-[#171c42] via-[#101435] to-[#080b1e] px-6 py-5 border-b border-white/10">
+              <h3 className="font-extrabold text-base text-white">REVIEW FALLBACK ATTENDANCE</h3>
+              <p className="text-xs text-slate-400 font-mono mt-0.5">
+                {selectedFallback.employee?.fullName} ({selectedFallback.employee?.employeeCode})
               </p>
             </div>
 
             <div className="p-6 space-y-4 text-xs">
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
-                <div><strong>Action:</strong> {selectedFallback.actionType.toUpperCase()}</div>
-                <div><strong>Reported Reason:</strong> {selectedFallback.reason.replace('_', ' ')}</div>
-                <div><strong>Employee Explanation:</strong> {selectedFallback.reasonDetails}</div>
+              <div className="bg-[#0b0e24] p-3.5 rounded-xl border border-white/10 space-y-1.5 font-mono">
+                <div><strong className="text-cyan-400">Action:</strong> {selectedFallback.actionType.toUpperCase()}</div>
+                <div><strong className="text-purple-400">Category:</strong> {selectedFallback.reason.replace('_', ' ')}</div>
+                <div className="text-slate-300 font-sans mt-1"><strong>Details:</strong> {selectedFallback.reasonDetails}</div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  HR Reviewer Comments
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-300 mb-1.5">
+                  HR Reviewer Audit Notes
                 </label>
                 <textarea
                   rows={3}
                   value={reviewNotes}
                   onChange={(e) => setReviewNotes(e.target.value)}
                   placeholder="e.g. Verified with department supervisor. Approved."
-                  className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full p-3 text-xs cyber-input resize-none"
                 ></textarea>
               </div>
 
@@ -439,7 +444,7 @@ export function AttendanceRosterScreen({ initialSubTab = 'roster' }: AttendanceR
                 <button
                   type="button"
                   onClick={() => setSelectedFallback(null)}
-                  className="text-xs text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                  className="text-xs text-slate-400 hover:text-white transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -449,7 +454,7 @@ export function AttendanceRosterScreen({ initialSubTab = 'roster' }: AttendanceR
                     type="button"
                     disabled={reviewLoading}
                     onClick={() => handleReviewFallback('rejected')}
-                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                    className="px-4 py-2 bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30 font-bold text-xs rounded-xl transition-all cursor-pointer disabled:opacity-50"
                   >
                     Reject
                   </button>
@@ -457,7 +462,7 @@ export function AttendanceRosterScreen({ initialSubTab = 'roster' }: AttendanceR
                     type="button"
                     disabled={reviewLoading}
                     onClick={() => handleReviewFallback('approved')}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                    className="glow-btn-cyan px-4 py-2 rounded-xl text-xs uppercase tracking-wider font-bold transition-all cursor-pointer disabled:opacity-50"
                   >
                     Approve
                   </button>

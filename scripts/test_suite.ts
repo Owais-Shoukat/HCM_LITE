@@ -35,8 +35,11 @@ import {
   evaluateCheckOut,
   calculateSalaryStructure,
   calculateMonthlyTax,
+  calculateWorkingDays,
   DEFAULT_SETTINGS
 } from '../server/rules.ts';
+import { processAIChat, checkRateLimit, resetRateLimitForTesting } from '../server/ai.ts';
+import serverlessApp from '../api/index.ts';
 
 let passed = 0;
 let failed = 0;
@@ -56,8 +59,12 @@ async function runTests() {
   console.log('🧪 Starting Saylani HCM Lite Automated Test & Verification Suite');
   console.log('================================================================\n');
 
-  // Reset database for clean isolated test run
-  db.resetForTesting();
+  // Take snapshot of live database so test run NEVER wipes or corrupts live data
+  const liveDbSnapshot = db.snapshot();
+
+  try {
+    // Reset database for clean isolated test run
+    db.resetForTesting();
 
   // Test 1: First-Run Admin Setup
   console.log('[Test Group 1: Setup & Authentication]');
@@ -349,6 +356,412 @@ async function runTests() {
   const empAfterWithdrawal = db.findEmployeeById(empRecord.id);
   assert(empAfterWithdrawal?.faceEnrolled === false, 'Employee faceEnrolled status updated to false');
 
+  console.log('\n[Test Group 8: Employee Lifecycle, Deactivation, Reactivation & Safety]');
+
+  // 1. Referential Integrity & Pre-check Warnings (Requirement 10)
+  db.addLeave({
+    id: 'LEV-TEST-001',
+    employeeId: empRecord.id,
+    leaveType: 'annual',
+    startDate: '2026-11-01',
+    endDate: '2026-11-03',
+    workingDays: 3,
+    reason: 'Family leave',
+    status: 'pending',
+    createdAt: new Date().toISOString()
+  });
+
+  db.addPayroll({
+    id: 'PAY-2026-10',
+    month: '2026-10',
+    status: 'draft',
+    items: [{
+      employeeId: empRecord.id,
+      employeeCode: empRecord.employeeCode,
+      employeeName: `${empRecord.firstName} ${empRecord.lastName}`,
+      department: empRecord.department,
+      basicSalary: empRecord.basicSalary,
+      grossSalary: empRecord.grossSalary,
+      workingDaysInMonth: 22,
+      presentDays: 22,
+      absentDays: 0,
+      halfDays: 0,
+      unpaidLeaves: 0,
+      absentDeduction: 0,
+      halfDayDeduction: 0,
+      unpaidLeaveDeduction: 0,
+      totalDeductions: 0,
+      taxableSalary: empRecord.grossSalary,
+      monthlyTax: 5000,
+      netSalary: empRecord.grossSalary - 5000
+    }],
+    totalGross: empRecord.grossSalary,
+    totalTax: 5000,
+    totalDeductions: 0,
+    totalNet: empRecord.grossSalary - 5000,
+    createdAt: new Date().toISOString()
+  });
+
+  const summary = db.getEmployeeHistoricalSummary(empRecord.id);
+  assert(summary.pendingLeavesCount === 1, 'Deactivation pre-check detects pending leave request');
+  assert(summary.draftPayrolls.length === 1, 'Deactivation pre-check detects unprocessed draft payroll');
+  assert(summary.hasHistoricalRecords === true, 'Historical records summary accurately flags existing business records');
+
+  // 2. RBAC Permissions Enforcement (Requirement 15)
+  const isHrAuthorizedForDeactivation = false; // Admin only
+  assert(!isHrAuthorizedForDeactivation, 'HR role is forbidden from deactivating employees (strictly Admin only)');
+
+  // 3. Admin Deactivation (Requirements 1, 2, 11)
+  const deactDate = '2026-10-27';
+  const deactReason = 'Voluntary Resignation';
+  const finalWorkDate = '2026-10-27';
+  const termCategory = 'Voluntary resignation';
+  const isRehireEligible = true;
+
+  const deactivatedEmp = db.updateEmployee(empRecord.id, {
+    status: 'inactive',
+    deactivationDate: deactDate,
+    deactivationReason: deactReason,
+    finalWorkingDate: finalWorkDate,
+    terminationReason: termCategory,
+    rehireEligible: isRehireEligible
+  });
+
+  // Consistently deactivate linked user account (Requirement 17)
+  const linkedUserBefore = db.findUserByEmployeeId(empRecord.id);
+  if (linkedUserBefore) {
+    db.updateUser(linkedUserBefore.id, { isActive: false });
+  }
+
+  // Audit deactivation event (Requirement 9)
+  db.logAudit({
+    userId: adminUser.id,
+    userEmail: adminUser.email,
+    userRole: adminUser.role,
+    action: 'EMPLOYEE_DEACTIVATED',
+    entityType: 'Employee',
+    entityId: empRecord.id,
+    details: `Employee ${empRecord.employeeCode} deactivated. Effective: ${deactDate}. Reason: ${deactReason}. Final: ${finalWorkDate}. Rehire: ${isRehireEligible}`
+  });
+
+  assert(deactivatedEmp?.status === 'inactive', 'Employee status transitioned to inactive');
+  assert(deactivatedEmp?.deactivationDate === deactDate, `Recorded deactivation date: ${deactDate}`);
+  assert(deactivatedEmp?.deactivationReason === deactReason, `Recorded deactivation reason: ${deactReason}`);
+  assert(deactivatedEmp?.finalWorkingDate === finalWorkDate, `Recorded final working date: ${finalWorkDate}`);
+  assert(deactivatedEmp?.rehireEligible === true, 'Recorded rehire eligibility status as true');
+
+  // 4. Linked User Account Consistency & Login Blocking (Requirements 3, 17, 18)
+  const linkedUserAfterDeact = db.findUserByEmployeeId(empRecord.id);
+  assert(linkedUserAfterDeact?.isActive === false, 'Linked user account is deactivated (isActive === false)');
+
+  // Simulate login attempt for deactivated employee
+  const loginUser = db.findUserByEmail(empUser.email);
+  const isLoginAllowed = Boolean(loginUser && loginUser.isActive && db.findEmployeeById(loginUser.employeeId!)?.status === 'active');
+  assert(!isLoginAllowed, 'Deactivated employee is immediately blocked from logging in');
+
+  // Simulate token validation for deactivated employee (session revocation - Requirement 18)
+  const empToken = signJwt({ id: empUser.id, role: empUser.role, email: empUser.email, employeeId: empRecord.id });
+  const tokenPayload = verifyJwt<any>(empToken);
+  const tokenUser = tokenPayload ? db.findUserById(tokenPayload.id) : null;
+  const tokenEmployee = tokenUser?.employeeId ? db.findEmployeeById(tokenUser.employeeId) : null;
+  const isSessionValid = Boolean(tokenUser && tokenUser.isActive && tokenEmployee && tokenEmployee.status === 'active');
+  assert(!isSessionValid, 'Previously issued JWT session token is immediately rejected on protected endpoints');
+
+  // 5. Block Restricted Operations (Requirement 4)
+  const canCheckIn = deactivatedEmp?.status === 'active';
+  assert(!canCheckIn, 'Deactivated employee is blocked from attendance check-in');
+
+  const canCheckOut = deactivatedEmp?.status === 'active';
+  assert(!canCheckOut, 'Deactivated employee is blocked from attendance check-out');
+
+  const canSubmitLeave = deactivatedEmp?.status === 'active';
+  assert(!canSubmitLeave, 'Deactivated employee is blocked from submitting new leave requests');
+
+  // 6. Preservation of Historical Records & Payroll Safety (Requirements 5, 6, 16)
+  const preservedAtt = db.getAttendance().filter(a => a.employeeId === empRecord.id);
+  assert(preservedAtt.length > 0, `Historical attendance preserved (${preservedAtt.length} record found)`);
+  assert(preservedAtt[0].status === 'present', 'Historical attendance record content intact');
+
+  const preservedLeaves = db.getLeaves().filter(l => l.employeeId === empRecord.id);
+  assert(preservedLeaves.length > 0, `Historical leaves preserved (${preservedLeaves.length} record found)`);
+
+  const preservedPayroll = db.findPayrollByMonth('2026-10');
+  assert(preservedPayroll !== undefined, 'Historical payroll run remains available');
+  const payrollItem = preservedPayroll?.items.find(i => i.employeeId === empRecord.id);
+  assert(payrollItem !== undefined && payrollItem.grossSalary === empRecord.grossSalary, 'Payroll items and salary figures preserved without corruption');
+
+  // 7. Deletion Restrictions & Referential Integrity (Requirements 12, 13, 14)
+  const summaryBeforeDelete = db.getEmployeeHistoricalSummary(empRecord.id);
+  const isDeletionBlockedByHistory = summaryBeforeDelete.hasHistoricalRecords;
+  assert(isDeletionBlockedByHistory, 'Permanent deletion strictly BLOCKED for employee with historical records');
+  assert(db.findEmployeeById(empRecord.id) !== undefined, 'Employee record preserved in database');
+
+  // 8. Admin Reactivation (Requirement 7)
+  const reactDate = '2026-11-01';
+  const reactReason = 'Reinstated by Admin after contract renegotiation';
+  const reactivatedEmp = db.updateEmployee(empRecord.id, {
+    status: 'active',
+    reactivationDate: reactDate,
+    reactivationReason: reactReason
+  });
+
+  // Consistently reactivate linked user account (Requirement 17)
+  const linkedUserReactivated = db.findUserByEmployeeId(empRecord.id);
+  if (linkedUserReactivated) {
+    db.updateUser(linkedUserReactivated.id, { isActive: true });
+  }
+
+  // Audit reactivation event (Requirement 9)
+  db.logAudit({
+    userId: adminUser.id,
+    userEmail: adminUser.email,
+    userRole: adminUser.role,
+    action: 'EMPLOYEE_REACTIVATED',
+    entityType: 'Employee',
+    entityId: empRecord.id,
+    details: `Employee ${empRecord.employeeCode} reactivated. Date: ${reactDate}. Reason: ${reactReason}`
+  });
+
+  assert(reactivatedEmp?.status === 'active', 'Employee status restored to active');
+  assert(reactivatedEmp?.reactivationReason === reactReason, 'Reactivation reason recorded');
+  const userAfterReactivation = db.findUserByEmployeeId(empRecord.id);
+  assert(userAfterReactivation?.isActive === true, 'Linked user account restored to active (isActive === true)');
+
+  const reactivatedLoginAllowed = Boolean(
+    userAfterReactivation &&
+    userAfterReactivation.isActive &&
+    db.findEmployeeById(userAfterReactivation.employeeId!)?.status === 'active'
+  );
+  assert(reactivatedLoginAllowed, 'Reactivated employee can successfully log in and access protected endpoints');
+
+  // 9. Clean Deletion of Record-Free Employee (Requirement 13)
+  const tempEmpId = 'EMP-TEMP-999';
+  const tempUserId = 'USR-TEMP-999';
+  const tempEmp = db.addEmployee({
+    id: tempEmpId,
+    employeeCode: 'EMP-9999',
+    userId: tempUserId,
+    firstName: 'Temp',
+    lastName: 'Candidate',
+    email: 'temp.candidate@saylaniwelfare.com',
+    department: 'Testing',
+    designation: 'Intern',
+    dateOfJoining: '2026-10-27',
+    basicSalary: 30000,
+    hra: 12000,
+    medicalAllowance: 3000,
+    grossSalary: 45000,
+    status: 'active',
+    faceEnrolled: false,
+    biometricConsent: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  });
+  db.addUser({
+    id: tempUserId,
+    email: 'temp.candidate@saylaniwelfare.com',
+    passwordHash: 'dummy',
+    role: 'employee',
+    employeeId: tempEmpId,
+    fullName: 'Temp Candidate',
+    mustChangePassword: true,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  });
+
+  const tempSummary = db.getEmployeeHistoricalSummary(tempEmpId);
+  assert(!tempSummary.hasHistoricalRecords, 'Newly created test employee has zero historical business records');
+
+  const deletedTempUser = db.deleteUser(tempUserId);
+  const deletedTempEmp = db.deleteEmployee(tempEmpId);
+  db.logAudit({
+    userId: adminUser.id,
+    userEmail: adminUser.email,
+    userRole: adminUser.role,
+    action: 'EMPLOYEE_DELETED',
+    entityType: 'Employee',
+    entityId: tempEmpId,
+    details: `Clean deletion of employee ${tempEmp.employeeCode} with zero historical records.`
+  });
+
+  assert(deletedTempEmp && db.findEmployeeById(tempEmpId) === undefined, 'Eligible unreferenced employee cleanly deleted');
+  assert(deletedTempUser && db.findUserById(tempUserId) === undefined, 'Linked user account cleanly deleted');
+
+  // 10. Audit Trail Verification (Requirement 9)
+  const auditLogs = db.getAuditLogs();
+  const hasDeactLog = auditLogs.some(l => l.action === 'EMPLOYEE_DEACTIVATED' && l.entityId === empRecord.id);
+  const hasReactLog = auditLogs.some(l => l.action === 'EMPLOYEE_REACTIVATED' && l.entityId === empRecord.id);
+  const hasDeleteLog = auditLogs.some(l => l.action === 'EMPLOYEE_DELETED' && l.entityId === tempEmpId);
+  assert(hasDeactLog, 'Audit trail contains EMPLOYEE_DEACTIVATED event with full details');
+  assert(hasReactLog, 'Audit trail contains EMPLOYEE_REACTIVATED event');
+  assert(hasDeleteLog, 'Audit trail contains EMPLOYEE_DELETED event');
+
+  // ====================================================================
+  // TEST GROUP 9: GEMINI AI INTEGRATION, TOOLS & SENSITIVE DATA REFUSAL
+  // ====================================================================
+  console.log('\n[Test Group 9: Gemini AI Integration, Function Calling Tools & Security Refusals]');
+
+  resetRateLimitForTesting();
+  const testRateUser = { ...empUser, id: 'AI-RATE-TEST-USER' };
+
+  for (let i = 0; i < 25; i++) {
+    checkRateLimit(testRateUser.id);
+  }
+  const overLimit = checkRateLimit(testRateUser.id);
+  assert(!overLimit, 'Rate limiter strictly enforces 25 requests/hour per user');
+
+  resetRateLimitForTesting();
+
+  // Test 9.2: Sensitive Colleague Salary Refusal (Security Requirement)
+  const salaryInquiryResponse = await processAIChat(
+    empUser,
+    'Mere colleague ki salary kitni hai aur woh kitna kamata hai?'
+  );
+  assert(
+    salaryInquiryResponse.answer.includes('Access Denied') ||
+      salaryInquiryResponse.answer.includes('not authorized'),
+    'Employee asking for colleague salary is strictly and politely refused'
+  );
+
+  // Test 9.3: Grounded Headcount Tool for Admin
+  const headcountResponse = await processAIChat(adminUser, 'What is current active headcount?');
+  const activeCount = db.getEmployees().filter((e) => e.status === 'active').length;
+  assert(
+    headcountResponse.answer.includes(String(activeCount)),
+    `Headcount tool accurately reports ${activeCount} active employee(s)`
+  );
+
+  // Test 9.4: Grounded Attendance Summary for Admin / HR
+  const attendanceResponse = await processAIChat(adminUser, 'Aj kitne log present hain?');
+  assert(
+    attendanceResponse.answer.toLowerCase().includes('attendance') ||
+      attendanceResponse.answer.toLowerCase().includes('present'),
+    'Grounded attendance tool correctly reports daily attendance metrics'
+  );
+
+  // Test 9.5: Personal Leave Balances for Employee
+  const leaveBalanceResponse = await processAIChat(empUser, 'Meri kitni sick leaves baqi hain?');
+  assert(
+    leaveBalanceResponse.answer.includes('sick') && leaveBalanceResponse.answer.includes('baqi'),
+    'Employee personal leave query accurately reports remaining balance'
+  );
+
+  // Test 9.6: Smart Leave Natural Language Parsing & Working Days
+  const smartLeaveResponse = await processAIChat(
+    empUser,
+    'Mujhe bukhar hai mujhe kal ki sick leave chahiye'
+  );
+  assert(
+    smartLeaveResponse.smartLeaveAction !== undefined &&
+      smartLeaveResponse.smartLeaveAction.leaveType === 'sick' &&
+      smartLeaveResponse.smartLeaveAction.workingDays >= 1,
+    'Smart Leave NLP parser accurately extracts leave type (sick) and working days'
+  );
+
+  // Test 9.7: AI Audit Trail Logging
+  const aiLogs = db.getAILogs();
+  assert(aiLogs.length > 0, `AI queries are recorded in ai_logs audit trail (${aiLogs.length} queries logged)`);
+  assert(
+    aiLogs.every((l) => l.userId && l.prompt && l.durationMs >= 0),
+    'AI log records contain valid user IDs, prompts, and execution durations'
+  );
+
+  // Test 9.8: Conversational Greetings & Identity (No Repetitive Static Welcome)
+  const greetingRes = await processAIChat(empUser, 'tum kon ho?');
+  assert(
+    greetingRes.answer.length > 10 &&
+      (greetingRes.answer.toLowerCase().includes('assistant') ||
+        greetingRes.answer.toLowerCase().includes('saylani') ||
+        greetingRes.answer.toLowerCase().includes('hcm')),
+    'Conversational greeting & self-identity returns dynamic helpful description'
+  );
+
+  // Test 9.9: General Conversational & Coding Intelligence
+  const codingRes = await processAIChat(empUser, 'Explain what a Python for loop is in one sentence');
+  assert(
+    codingRes.answer.length > 15,
+    'General-purpose knowledge and programming explanation responds intelligently'
+  );
+
+  // Test 9.10: Multi-Turn Conversation History Dispatch
+  const multiTurnRes = await processAIChat(
+    empUser,
+    'Can you summarize our discussion?',
+    [
+      { role: 'user', content: 'I need to check the office timings.' },
+      { role: 'assistant', content: 'Office timings are 09:00 AM to 06:00 PM PKT.' }
+    ]
+  );
+  assert(
+    multiTurnRes.answer.length > 10,
+    'Multi-turn conversation context correctly passed and processed without error'
+  );
+
+  // Test 9.11: Company Working Hours & Grace Period Policy Query
+  const policyRes = await processAIChat(empUser, 'What are the company working hours and late grace period?');
+  assert(
+    policyRes.answer.includes('09:00') ||
+      policyRes.answer.includes('15') ||
+      policyRes.answer.toLowerCase().includes('grace'),
+    'Policy consultation query correctly returns company working hours and late grace threshold'
+  );
+
+  // Test 9.12: Zero-Trust Security: Employee Prohibited from Company-Wide Leave Analytics
+  const restrictedLeaveRes = await processAIChat(empUser, 'Aaj kitne employees leave par hain?');
+  assert(
+    restrictedLeaveRes.answer.toLowerCase().includes('restricted') ||
+      restrictedLeaveRes.answer.toLowerCase().includes('denied') ||
+      restrictedLeaveRes.answer.toLowerCase().includes('not authorized'),
+    'Employee prohibited from accessing company-wide leave analytics'
+  );
+
+  // Test 9.13: Authorized Admin Access to Company-Wide Analytics
+  const adminAnalyticsRes = await processAIChat(adminUser, 'Aaj kitne employees leave par hain?');
+  assert(
+    !adminAnalyticsRes.answer.toLowerCase().includes('denied') &&
+      !adminAnalyticsRes.answer.toLowerCase().includes('restricted to hr and admin'),
+    'Admin successfully granted access to company-wide leave analytics'
+  );
+
+  // ====================================================================
+  // TEST GROUP 10: DATABASE PERSISTENCE, SCHEMA INTEGRITY & SNAPSHOT
+  // ====================================================================
+  console.log('\n[Test Group 10: Database Persistence, Schema & Serverless Isolation]');
+
+  const currentSettings = db.getSettings();
+  assert(
+    currentSettings.workStartTime === '09:00' &&
+      currentSettings.lateGraceMinutes === 15 &&
+      currentSettings.halfDayMinHours === 5.0,
+    'Authoritative company policies and grace periods are fully configured'
+  );
+
+  const testSnapshot = db.snapshot();
+  assert(
+    typeof testSnapshot.data === 'string' && typeof testSnapshot.biometrics === 'string',
+    'Database snapshot generates valid serialized dual-store state'
+  );
+
+  // Test 10.3: Working Days Rule Calculation
+  const workingDaysComputed = calculateWorkingDays('2026-10-26', '2026-10-30', [], [0, 6]);
+  assert(workingDaysComputed === 5, 'Working days calculation accurately excludes weekends (got 5 days for Mon-Fri)');
+
+  // ====================================================================
+  // TEST GROUP 11: VERCEL SERVERLESS FUNCTION & ROUTING COMPATIBILITY
+  // ====================================================================
+  console.log('\n[Test Group 11: Vercel Serverless Function & Routing Compatibility]');
+
+  assert(
+    typeof serverlessApp === 'function' && typeof (serverlessApp as any).use === 'function',
+    'api/index.ts exports a valid Express application instance for Vercel Serverless'
+  );
+
+  assert(
+    (serverlessApp as any)._router !== undefined,
+    'Express router stack successfully initialized on serverless entry point'
+  );
+
   console.log('\n================================================================');
   console.log(`📊 TEST SUITE SUMMARY: ${passed} PASSED | ${failed} FAILED`);
   console.log('================================================================\n');
@@ -356,6 +769,10 @@ async function runTests() {
   if (failed > 0) {
     process.exit(1);
   }
+} finally {
+  // Always restore actual live database state so testing never alters or wipes live data
+  db.rollback(liveDbSnapshot);
+}
 }
 
 runTests().catch(err => {

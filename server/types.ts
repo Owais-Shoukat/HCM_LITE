@@ -36,6 +36,13 @@ export interface Employee {
   medicalAllowance: number; // 10% of basic
   grossSalary: number; // 1.5 * basic
   status: 'active' | 'inactive';
+  deactivationDate?: string; // Effective deactivation date (YYYY-MM-DD)
+  deactivationReason?: string; // Reason for deactivation
+  finalWorkingDate?: string; // Documented final working date (YYYY-MM-DD)
+  terminationReason?: string; // Detailed termination reason / category
+  rehireEligible?: boolean; // Whether employee is eligible for rehire
+  reactivationDate?: string; // Date of reactivation (YYYY-MM-DD or ISO)
+  reactivationReason?: string; // Reason for reactivation
   faceEnrolled: boolean;
   biometricConsent: boolean;
   biometricConsentDate?: string;
@@ -177,6 +184,17 @@ export interface AuditLog {
   ipAddress?: string;
 }
 
+export interface AILog {
+  id: string;
+  userId: string;
+  userRole: string;
+  prompt: string;
+  toolCalls?: any;
+  response: string;
+  durationMs: number;
+  createdAt: string;
+}
+
 export interface DatabaseSchema {
   isSetup: boolean;
   settings: CompanySettings;
@@ -187,4 +205,5 @@ export interface DatabaseSchema {
   leaves: LeaveRecord[];
   payrolls: PayrollRecord[];
   auditLogs: AuditLog[];
+  aiLogs?: AILog[];
 }

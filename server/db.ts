@@ -10,6 +10,8 @@
 
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
+import pg from 'pg';
 import type {
   DatabaseSchema,
   User,
@@ -19,17 +21,61 @@ import type {
   EncryptedBiometricTemplate,
   LeaveRecord,
   PayrollRecord,
-  AuditLog
+  AuditLog,
+  AILog
 } from './types.ts';
 import { DEFAULT_SETTINGS } from './rules.ts';
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
+const { Pool } = pg;
+
+function resolveDataDir(): string {
+  if (process.env.DATA_DIR) {
+    return path.resolve(process.env.DATA_DIR);
+  }
+  // Serverless environment detection (Vercel / AWS Lambda)
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return path.join(os.tmpdir(), 'saylani-hcm-data');
+  }
+  const localDir = path.resolve(process.cwd(), 'data');
+  try {
+    if (!fs.existsSync(localDir)) {
+      fs.mkdirSync(localDir, { recursive: true });
+    }
+    const testFile = path.join(localDir, `.test_write_${Date.now()}`);
+    fs.writeFileSync(testFile, 'ok', 'utf-8');
+    fs.unlinkSync(testFile);
+    return localDir;
+  } catch (_e) {
+    return path.join(os.tmpdir(), 'saylani-hcm-data');
+  }
+}
+
+const DATA_DIR = resolveDataDir();
 const DB_FILE = path.join(DATA_DIR, 'hcm_data.json');
 const BIOMETRICS_FILE = path.join(DATA_DIR, 'biometrics.enc.json');
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  } catch (err) {
+    console.warn('[DB] Notice creating DATA_DIR:', err);
+  }
+}
+
+// PostgreSQL Connection Pool when DATABASE_URL or POSTGRES_URL is provided
+const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+let pgPool: pg.Pool | null = null;
+if (dbUrl) {
+  try {
+    pgPool = new Pool({
+      connectionString: dbUrl,
+      ssl: dbUrl.includes('localhost') ? false : { rejectUnauthorized: false },
+      connectionTimeoutMillis: 5000,
+    });
+  } catch (err) {
+    console.warn('[DB] PostgreSQL pool initialization notice:', err);
+  }
 }
 
 interface BiometricsStore {
@@ -50,7 +96,9 @@ class Database {
     try {
       if (fs.existsSync(DB_FILE)) {
         const raw = fs.readFileSync(DB_FILE, 'utf-8');
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        parsed.aiLogs = parsed.aiLogs || [];
+        return parsed;
       }
     } catch (err) {
       console.error('[DB] Error loading hcm_data.json:', err);
@@ -65,7 +113,8 @@ class Database {
       fallbackRequests: [],
       leaves: [],
       payrolls: [],
-      auditLogs: []
+      auditLogs: [],
+      aiLogs: []
     };
 
     this.saveDataAtomic(initial);
@@ -88,20 +137,81 @@ class Database {
   }
 
   private saveDataAtomic(data: DatabaseSchema) {
-    const tmpFile = path.join(DATA_DIR, `hcm_data.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 7)}`);
-    fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2), 'utf-8');
-    fs.renameSync(tmpFile, DB_FILE);
+    try {
+      const tmpFile = path.join(DATA_DIR, `hcm_data.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 7)}`);
+      fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2), 'utf-8');
+      fs.renameSync(tmpFile, DB_FILE);
+    } catch (err) {
+      console.error('[DB] Error saving hcm_data.json:', err);
+    }
   }
 
   private saveBiometricsAtomic(store: BiometricsStore) {
-    const tmpFile = path.join(DATA_DIR, `biometrics.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 7)}`);
-    fs.writeFileSync(tmpFile, JSON.stringify(store, null, 2), 'utf-8');
-    fs.renameSync(tmpFile, BIOMETRICS_FILE);
+    try {
+      const tmpFile = path.join(DATA_DIR, `biometrics.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 7)}`);
+      fs.writeFileSync(tmpFile, JSON.stringify(store, null, 2), 'utf-8');
+      fs.renameSync(tmpFile, BIOMETRICS_FILE);
+    } catch (err) {
+      console.error('[DB] Error saving biometrics.enc.json:', err);
+    }
   }
 
   public commit() {
     this.saveDataAtomic(this.data);
     this.saveBiometricsAtomic(this.biometrics);
+
+    // Asynchronously synchronize with PostgreSQL store when configured
+    if (pgPool) {
+      this.syncToPostgres().catch((err) => {
+        console.warn('[DB] PostgreSQL sync notice:', err?.message || err);
+      });
+    }
+  }
+
+  public async syncToPostgres() {
+    if (!pgPool) return;
+    try {
+      await pgPool.query(`
+        CREATE TABLE IF NOT EXISTS hcm_store (
+          key VARCHAR(64) PRIMARY KEY,
+          data JSONB NOT NULL,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      await pgPool.query(
+        `INSERT INTO hcm_store (key, data, updated_at) VALUES ($1, $2, NOW())
+         ON CONFLICT (key) DO UPDATE SET data = $2, updated_at = NOW();`,
+        ['main', JSON.stringify(this.data)]
+      );
+      await pgPool.query(
+        `INSERT INTO hcm_store (key, data, updated_at) VALUES ($1, $2, NOW())
+         ON CONFLICT (key) DO UPDATE SET data = $2, updated_at = NOW();`,
+        ['biometrics', JSON.stringify(this.biometrics)]
+      );
+    } catch (err: any) {
+      console.warn('[DB] syncToPostgres failed:', err?.message || err);
+    }
+  }
+
+  public async syncFromPostgres(): Promise<boolean> {
+    if (!pgPool) return false;
+    try {
+      const res = await pgPool.query(`SELECT key, data FROM hcm_store WHERE key IN ('main', 'biometrics');`);
+      for (const row of res.rows) {
+        if (row.key === 'main' && row.data) {
+          this.data = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+          this.data.aiLogs = this.data.aiLogs || [];
+          this.saveDataAtomic(this.data);
+        } else if (row.key === 'biometrics' && row.data) {
+          this.biometrics = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+          this.saveBiometricsAtomic(this.biometrics);
+        }
+      }
+      return true;
+    } catch (err: any) {
+      console.warn('[DB] syncFromPostgres notice:', err?.message || err);
+      return false;
+    }
   }
 
   // Snapshot for transactional rollback
@@ -175,6 +285,16 @@ class Database {
     return this.data.users[idx];
   }
 
+  public deleteUser(id: string): boolean {
+    const before = this.data.users.length;
+    this.data.users = this.data.users.filter(u => u.id !== id);
+    if (this.data.users.length !== before) {
+      this.commit();
+      return true;
+    }
+    return false;
+  }
+
   // Employees
   public getEmployees(): Employee[] {
     return this.data.employees;
@@ -217,6 +337,39 @@ class Database {
     this.data.employees[idx] = { ...this.data.employees[idx], ...updates, updatedAt: new Date().toISOString() };
     this.commit();
     return this.data.employees[idx];
+  }
+
+  public deleteEmployee(id: string): boolean {
+    const before = this.data.employees.length;
+    this.data.employees = this.data.employees.filter(e => e.id !== id);
+    if (this.data.employees.length !== before) {
+      this.commit();
+      return true;
+    }
+    return false;
+  }
+
+  public getEmployeeHistoricalSummary(empId: string) {
+    const attendanceCount = this.data.attendance.filter(a => a.employeeId === empId).length;
+    const leaves = this.data.leaves.filter(l => l.employeeId === empId);
+    const pendingLeaves = leaves.filter(l => l.status === 'pending');
+    const draftPayrolls = this.data.payrolls.filter(p => p.status === 'draft' && p.items.some(i => i.employeeId === empId));
+    const finalizedPayrolls = this.data.payrolls.filter(p => p.status === 'finalized' && p.items.some(i => i.employeeId === empId));
+    const fallbackCount = this.data.fallbackRequests.filter(f => f.employeeId === empId).length;
+    const hasBiometrics = this.biometrics.templates.some(t => t.employeeId === empId);
+
+    return {
+      attendanceCount,
+      leavesCount: leaves.length,
+      pendingLeavesCount: pendingLeaves.length,
+      pendingLeaves,
+      payrollCount: draftPayrolls.length + finalizedPayrolls.length,
+      draftPayrolls,
+      finalizedPayrolls,
+      fallbackCount,
+      hasBiometrics,
+      hasHistoricalRecords: (attendanceCount > 0 || leaves.length > 0 || finalizedPayrolls.length > 0 || draftPayrolls.length > 0 || fallbackCount > 0)
+    };
   }
 
   // Biometrics (Encrypted Vault)
@@ -348,6 +501,25 @@ class Database {
     return this.data.auditLogs;
   }
 
+  // AI Logs
+  public getAILogs(): AILog[] {
+    return this.data.aiLogs || [];
+  }
+
+  public addAILog(log: AILog): AILog {
+    this.data.aiLogs = this.data.aiLogs || [];
+    this.data.aiLogs.unshift(log);
+    if (this.data.aiLogs.length > 1000) {
+      this.data.aiLogs = this.data.aiLogs.slice(0, 1000);
+    }
+    this.commit();
+    return log;
+  }
+
+  public getData(): DatabaseSchema {
+    return this.data;
+  }
+
   // Clean reset for testing (only active if allowed by test flag)
   public resetForTesting() {
     this.data = {
@@ -359,7 +531,8 @@ class Database {
       fallbackRequests: [],
       leaves: [],
       payrolls: [],
-      auditLogs: []
+      auditLogs: [],
+      aiLogs: []
     };
     this.biometrics = { templates: [] };
     this.commit();
@@ -387,7 +560,17 @@ export function sanitizeEmployee(emp: Employee, callerRole?: string, callerEmpId
     return emp;
   }
 
-  // Mask salaries for other employees
-  const { basicSalary, hra, medicalAllowance, grossSalary, ...safe } = emp;
-  return safe;
+  // Mask salaries and sensitive separation details for other employees
+  const {
+    basicSalary,
+    hra,
+    medicalAllowance,
+    grossSalary,
+    deactivationReason,
+    terminationReason,
+    rehireEligible,
+    reactivationReason,
+    ...safe
+  } = emp;
+  return safe as Employee;
 }

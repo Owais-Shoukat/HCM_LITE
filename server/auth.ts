@@ -46,6 +46,14 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
     return res.status(401).json({ error: 'User account not found or has been deactivated.' });
   }
 
+  // Enforce employee profile deactivation check
+  if (user.employeeId) {
+    const emp = db.findEmployeeById(user.employeeId);
+    if (!emp || emp.status === 'inactive') {
+      return res.status(401).json({ error: 'Employee account has been deactivated. Access denied.' });
+    }
+  }
+
   req.user = {
     id: user.id,
     email: user.email,
